@@ -105,10 +105,10 @@ my $usage = "Usage:
     $name [-h|--help]
 
   Quick threshold commands:
-    $name [-v] -q $methodLIFE [<start> <stop>] (sets battery charge thresholds, or 38-75%)
-    $name [-v] -q $methodDEFS (restores default thresholds for max charge)
-    $name [-v] -q $methodFULL (keeps battery rather full)
-    $name [-v] -q $methodQUERY (shows battery charge thresholds)
+    $name [-v] [-q] $methodLIFE [<start> <stop>] (sets battery charge thresholds, or 38-75%)
+    $name [-v] [-q] $methodDEFS (restores default thresholds for max charge)
+    $name [-v] [-q] $methodFULL (keeps battery rather full)
+    $name [-v] [-q] $methodQUERY (shows battery charge thresholds)
 
   Get charge thresholds / inhibit charge / force discharge:
     $name [-v] -g $methodST <bat{1,2}>
@@ -162,9 +162,17 @@ sub main(@){
     $verbose = 1;
     shift;
   }
-  my $cmd = shift() || '';
-  my $method;
-  my $methodSyn = shift() || '';
+
+  my ($cmd, $method, $methodSyn);
+
+  if (@_ >= 1 and $_[0] !~ /^(-g|-s|-q)$/) {
+      # if no command specified, quick command implied
+      $cmd = '-q';
+  } else {
+      $cmd = shift() || '';
+  }
+
+  $methodSyn = shift() || '';
   for my $m(keys %$methodSyns){
     $method = $m if $methodSyn eq $m or $methodSyn =~ /^($$methodSyns{$m})$/;
   }
@@ -218,6 +226,15 @@ sub quickMethod($@){
 		    ($desiredStart < $desiredStop) && 
 		    ($desiredStop <= 99)) {
 		    # all is ok
+
+		    # sanity check low start & stop thresholds
+		    # always charge if below 12%, and charge to >= 18%
+		    if ($desiredStart > 0 && $desiredStart < 12) {
+			$desiredStart = 12;
+		    }
+		    if ($desiredStop < 18) {
+			$desiredStop = 18;
+		    }
 		} else {
 		    die "bad thresholds\n";
 		}
@@ -274,6 +291,14 @@ sub quickMethod($@){
 	for (my $i=1; $i <=1; $i++){
 	    my $startThresh = rawReadStartChargeThreshold(acpiCallGet 'BCTG', $i);
 	    my $stopThresh = rawReadStopChargeThreshold(acpiCallGet 'BCSG', $i);
+
+	    # sane printing of default values
+	    if ($startThresh == 0) {
+		$startThresh = 96;
+	    }
+	    if ($stopThresh == 0) {
+		$stopThresh = 100;
+	    }
 	    print "Battery $i thresholds are " . $startThresh . "-" . $stopThresh . "% \n";
 	}
     }
